@@ -3,7 +3,7 @@ import psycopg2
 import random
 import time
 
-# DB 연결
+## DB 연결
 conn = psycopg2.connect(
     dbname="battery_data",
     user="admin",
@@ -37,5 +37,4 @@ while True:
     )
     conn.commit()
     print(f"Inserted into DB: {voltage},{current},{temp}")
-    
     time.sleep(5)
