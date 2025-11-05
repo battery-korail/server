@@ -9,6 +9,8 @@ conn = psycopg2.connect(
     user="admin",
     password="admin",
     host="localhost"
+
+    
 )
 cur = conn.cursor()
 
@@ -29,7 +31,6 @@ while True:
     # MQTT Publish
     client.publish("battery/data", f"{voltage},{current},{temp}")
     print(f"Published: {voltage},{current},{temp}")
-    
     # DB Insert
     cur.execute(
         "INSERT INTO battery_logs (voltage, current, temperature) VALUES (%s, %s, %s)",
