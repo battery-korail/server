@@ -1,0 +1,53 @@
+# ---------------------
+# OS 및 쉘 관련
+# ---------------------
+*.swp
+*.swo
+.DS_Store
+*.Trash-*
+
+# ---------------------
+# 환경 설정 및 개인 정보
+# ---------------------
+.bash_history
+.bash_logout
+.bashrc
+.profile
+.sudo_as_admin_successful
+
+# ---------------------
+# IDE / 편집기
+# ---------------------
+.vscode/
+.vscode-server/
+
+# ---------------------
+# Python 가상환경
+# ---------------------
+venv/
+__pycache__/
+*.pyc
+
+# ---------------------
+# Docker
+# ---------------------
+mosquitto/data/
+mosquitto/log/
+*.env
+*.log
+
+# ---------------------
+# Grafana
+# ---------------------
+grafana/data/
+grafana/log/
+grafana/plugins/
+
+# ---------------------
+# 기타 불필요 파일
+# ---------------------
+.cache/
+.wget-hsts
+.env
+.env.local
+node_modules/
