@@ -50,13 +50,12 @@ Korail 철도·산업용 배터리 유지보수 업무에서 **비효율적인 �
 [Database - PostgreSQL]
 ├─ 실시간 로그
 ├─ 배터리별 측정값 저장
-└─ 알람/이벤트 테이블
 ▼
 
 [Web Dashboard - Next.js]
 ├─ 실시간 데이터 그래프
 ├─ 장비 상태 모니터링
-└─ 알람/히스토리 조회
+└─ 히스토리 조회
 
 [Grafana]
 └─ 장기 데이터 트렌드 분석
@@ -87,7 +86,6 @@ Korail 철도·산업용 배터리 유지보수 업무에서 **비효율적인 �
 | ------------------------------- | ------------ |
 | ESP32 (Arduino Core)            | 메인 컨트롤러      |
 | MQTT Publish                    | Telemetry 전송 |
-| OTA 업데이트                        | 원격 펌웨어 업데이트  |
 
 ### Backend
 
@@ -96,7 +94,6 @@ Korail 철도·산업용 배터리 유지보수 업무에서 **비효율적인 �
 | Flask (Python) | 서버 API & MQTT Subscriber |
 | Paho-MQTT      | MQTT 메시지 구독              |
 | PostgreSQL     | 시계열 데이터 저장               |
-| SQLAlchemy     | ORM, DB 모델링              |
 | Docker         | 서버 배포 환경                 |
 
 
@@ -117,6 +114,3 @@ Korail 철도·산업용 배터리 유지보수 업무에서 **비효율적인 �
 | Grafana   | 장기 데이터 분석   |
 
 
-
-
-```
