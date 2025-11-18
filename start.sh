@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/iot-stack
+cd ~/iot-stack-old
 docker compose up -d
 cd backend
 source venv/bin/activate
