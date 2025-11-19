@@ -9,16 +9,20 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# CORS(app, resources={r"/*": {"origins": "*"}})
+
+
+
 def get_conn():
     return psycopg2.connect(
-        host=os.getenv("PG_HOST", "localhost"),
-        port=int(os.getenv("PG_PORT", 5432)),
-        dbname=os.getenv("POSTGRES_DB", "battery_data"),
-        user=os.getenv("POSTGRES_USER", "admin"),
-        password=os.getenv("POSTGRES_PASSWORD", "admin")
+        host=os.getenv("PG_HOST"),
+        port=int(os.getenv("PG_PORT")),
+        dbname=os.getenv("POSTGRES_DB"),
+        user=os.getenv("POSTGRES_USER"),
+        password=os.getenv("POSTGRES_PASSWORD")
     )
 
-# 실시간 로그 조회
+
 @app.route("/dp")
 def get_dp_log():
     limit = int(request.args.get("limit", 50))
@@ -29,6 +33,7 @@ def get_dp_log():
     cur.close()
     conn.close()
     return jsonify(rows[::-1])
+
 
 # 저장된 값 저장
 @app.route("/dp/save", methods=["POST"])
@@ -43,7 +48,7 @@ def save_dp():
         conn = get_conn()  # DB 연결
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO dp_saved (dp_pa) VALUES (%s) RETURNING id, dp_pa, created_at;",
+            "INSERT INTO dp_saved (sg) VALUES (%s) RETURNING id, sg AS dp_pa, created_at;",
             (dp_pa,)
         )
         saved = cur.fetchone()
@@ -70,7 +75,10 @@ def get_saved_values():
 
     conn = get_conn()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT * FROM dp_saved ORDER BY id DESC LIMIT %s OFFSET %s;", (per_page, offset))
+    cur.execute(
+        "SELECT id, sg AS dp_pa, created_at FROM dp_saved ORDER BY id DESC LIMIT %s OFFSET %s;",
+        (per_page, offset)
+    )
     rows = cur.fetchall()
 
     cur.execute("SELECT COUNT(*) FROM dp_saved;")

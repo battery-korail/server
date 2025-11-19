@@ -1,0 +1,10 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY mqtt_consumer/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY mqtt_consumer/ .
+
+CMD ["python3", "mqtt_consumer.py"]

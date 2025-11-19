@@ -19,14 +19,20 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const [displayedValue, setDisplayedValue] = useState<number>(0);
+
+
+
+
 
 
   const fetchRealTime = async () => {
     try {
       const res = await axios.get(`${API_URL}/dp?limit=30`);
+      //console.log("DP data:", res.data);
       const logs = res.data as any[];
       setLabels(logs.map((l: any) => new Date(l.created_at).toLocaleTimeString()));
-      const dpVals = logs.map((l: any) => parseFloat(l.dp_pa));
+      const dpVals = logs.map((l: any) => parseFloat(l.sg));
       setData(dpVals);
       setCurrentValue(dpVals[dpVals.length - 1] || 0);
     } catch (err) {
@@ -34,16 +40,34 @@ export default function Home() {
     }
   };
 
-  const fetchSaved = async (page: number) => {
-    try {
-      const res = await axios.get(`${API_URL}/dp/saved?page=${page}&per_page=5`);
-      setSavedValues(res.data.data);
-      setPage(res.data.page);
-      setTotalPages(res.data.total_pages);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // const fetchSaved = async (page: number) => {
+  //   try {
+  //     const res = await axios.get(`${API_URL}/dp/saved?page=${page}&per_page=5`);
+  //     setSavedValues(res.data.data);
+  //     setPage(res.data.page);
+  //     setTotalPages(res.data.total_pages);
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
+  // };
+// fetchSaved 정의
+const fetchSaved = async (page: number) => {
+  try {
+    const res = await axios.get(`${API_URL}/dp/saved?page=${page}&per_page=5`);
+    const data = res.data as { 
+      data: SavedValue[]; 
+      page: number; 
+      per_page: number; 
+      total: number; 
+      total_pages: number; 
+    };
+    setSavedValues(data.data);
+    setPage(data.page);
+    setTotalPages(data.total_pages);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const handleSave = async () => {
     try {
@@ -64,20 +88,32 @@ export default function Home() {
     fetchSaved(1);
     return () => clearInterval(interval);
   }, []);
+// useEffect(() => {
+//   console.log("labels updated:", labels);
+//   console.log("data updated:", data);
+// }, [labels, data]);
+
+useEffect(() => {
+  let animationFrame: number;
+  const animate = () => {
+    setDisplayedValue(prev => prev + (currentValue - prev) * 0.1);
+    animationFrame = requestAnimationFrame(animate);
+  };
+  animate();
+  return () => cancelAnimationFrame(animationFrame);
+}, [currentValue]);
+
 
   return (
     <div className="p-6 bg-gray-100 min-h-screen space-y-6">
       {/* 실시간 dP 카드 */}
       <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-2xl font-bold mb-4">실시간 dP</h2>
+        <h2 className="text-2xl font-bold mb-4">배터리셀 실시간 dP</h2>
         <DPChart labels={labels} data={data} />
         <div className="mt-4 flex items-center justify-between">
-          <span
-            className="text-3xl font-extrabold text-gray-700 cursor-default"
-            title="현재 값"
-          >
-            현재 값: {currentValue.toFixed(2)} Pa
-          </span>
+          <span className="text-3xl font-extrabold text-gray-700 cursor-default" title="현재 값">
+  현재 값: {displayedValue.toFixed(2)} Pa
+</span>
           <button
             className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition cursor-pointer"
             onClick={handleSave}

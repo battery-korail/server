@@ -28,9 +28,17 @@ export default function DPChart({ labels, data }: DPChartProps) {
         data,
         borderColor: "rgb(75, 192, 192)",
         backgroundColor: "rgba(75, 192, 192, 0.2)",
+        tension: 0.3,
       },
     ],
   };
 
-  return <Line data={chartData} />;
+  return <Line
+  data={chartData}
+  options={{
+    responsive: true,
+    animation: { duration: 300 },
+    scales: { y: { beginAtZero: false } },
+  }}
+ />;
 }
