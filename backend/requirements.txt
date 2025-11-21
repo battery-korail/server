@@ -1,5 +1,11 @@
-paho-mqtt
-psycopg2-binary
-Flask
-flask-cors
-python-dotenv
+Flask==2.3.3
+flask-cors==4.0.0
+psycopg2-binary==2.9.9
+
+python-dotenv==1.0.0
+paho-mqtt==1.6.1
+
+flask-socketio==5.3.6
+python-socketio==5.11.2
+python-engineio==4.8.1
+eventlet==0.33.3
