@@ -10,12 +10,8 @@ static const int UART2_RX = 16;              // ESP32 RX2 <- Nextion TX(옵션)
 static const uint32_t NEXTION_BAUD = 115200; // HMI 프로젝트 보레이트와 동일하게
 
 /* ====== WiFi & MQTT ====== */
-const char* WIFI_SSID = "KT_105_L1";
-const char* WIFI_PASS = "44444445";
-
-const char* MQTT_BROKER = "43.200.169.54";
-const uint16_t MQTT_PORT = 1883;
-const char* MQTT_TOPIC = "stm/dp";
+// 민감정보는 별도 config.h에서 주입 (git에 커밋 금지)
+#include "config.h" // defines WIFI_SSID, WIFI_PASS, MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
 
 WiFiClient espClient;
 PubSubClient mqtt(espClient);

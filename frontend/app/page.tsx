@@ -1,9 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-// const NODE_SERVER_URL = 'http://43.200.169.54:3001';
-const NODE_SERVER_URL = 'http://43.200.169.54:5000'; 
-const FLASK_API_URL = 'http://43.200.169.54:5000';
+// API base URL은 환경변수로 주입 (Next.js 퍼블릭 변수 사용)
+const FLASK_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const MAX_DATA_POINTS = 25;
 
