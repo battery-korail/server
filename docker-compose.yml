@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   mqtt:
     image: eclipse-mosquitto
@@ -31,14 +33,14 @@ services:
       - mqtt
       - postgres
     environment:
-      - MQTT_BROKER=mqtt
-      - MQTT_PORT=1883
-      - MQTT_TOPIC=stm/dp
-      - PG_HOST=postgres
-      - PG_PORT=5432
+      - MQTT_BROKER=${MQTT_BROKER}
+      - MQTT_PORT=${MQTT_PORT}
+      - MQTT_TOPIC=${MQTT_TOPIC}
+      - PG_HOST=${PG_HOST}
+      - PG_PORT=${PG_PORT}
       - PG_DB=battery_data
-      - PG_USER=${POSTGRES_USER}
-      - PG_PASS=${POSTGRES_PASSWORD}
+      - PG_USER=${PG_USER}
+      - PG_PASS=${PG_PASS}
 
   backend:
     build:
@@ -51,12 +53,15 @@ services:
       - postgres
       - mqtt
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
       - PG_HOST=postgres
       - PG_PORT=5432
+      - PG_DB=battery_data
+      - PG_USER=admin
+      - PG_PASS=${PG_PASS}
       - MQTT_BROKER=mqtt
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=stm/dp
+
 
   frontend:
     build:
@@ -66,7 +71,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://43.200.169.54:5000 
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     depends_on:
       - backend
 

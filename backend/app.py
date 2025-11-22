@@ -1,11 +1,13 @@
-import eventlet
-eventlet.monkey_patch()
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 from dotenv import load_dotenv
+import time
+import logging
+import sys
 import threading
 import paho.mqtt.client as mqtt
 from flask_socketio import SocketIO
@@ -16,19 +18,41 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # ====== Socket.IO ======
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
-
+# ====== Logging ======
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("battery_backend")
 
 # ====== PostgreSQL 연결 ======
 def get_conn():
     return psycopg2.connect(
         host=os.getenv("PG_HOST"),
         port=int(os.getenv("PG_PORT")),
-        dbname=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD")
+        dbname=os.getenv("PG_DB"),
+        user=os.getenv("PG_USER"),
+        password=os.getenv("PG_PASS")
     )
+
+# ====== DB 스키마 보장 ======
+def ensure_tables():
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dp_saved (
+                id SERIAL PRIMARY KEY,
+                sg DOUBLE PRECISION NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+            );
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        logger.exception("DB init error: %s", e)
+
+ensure_tables()
 
 # ====== MQTT 설정 ======
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt")
@@ -40,36 +64,54 @@ latest_data = {
     "sg": 0.0,
     "samples": 0
 }
+last_mqtt_received_at = 0.0
+mqtt_client = None
 
 # MQTT 콜백
 def on_connect(client, userdata, flags, rc):
-    print(f"[MQTT] Connected with result code {rc}")
+    logger.info(f"[MQTT] Connected with result code {rc}")
     client.subscribe(MQTT_TOPIC)
+    logger.info(f"[MQTT] Subscribed to topic: {MQTT_TOPIC}")
 
 def on_message(client, userdata, msg):
-    global latest_data
+    global latest_data, last_mqtt_received_at
     import json
     try:
-        print("[MQTT] Received:", msg.payload.decode()) 
+        payload_text = msg.payload.decode()
+        logger.info("[MQTT] Received: %s", payload_text)
         payload = json.loads(msg.payload.decode())
-        print(payload)
         
         if "sg" in payload and "samples" in payload:
             latest_data["sg"] = float(payload["sg"])
             latest_data["samples"] = int(payload["samples"])
+            last_mqtt_received_at = time.time()
             # 웹에 push
-            print(latest_data)
+            logger.info("[MQTT] Parsed sg=%.3f samples=%d", latest_data["sg"], latest_data["samples"])
             socketio.emit("batteryUpdate", {"gravity": latest_data["sg"], "level": latest_data["samples"]})
     except Exception as e:
-        print(f"[MQTT] payload parse error: {e}")
+        logger.exception("[MQTT] payload parse error: %s", e)
+        
+def on_disconnect(client, userdata, rc):
+    logger.warning("[MQTT] Disconnected (rc=%s)", rc)
 
 # MQTT 클라이언트 시작 (백그라운드 스레드)
 def start_mqtt():
-    client = mqtt.Client("flask_server")
-    client.on_connect = on_connect
-    client.on_message = on_message
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.loop_forever()
+    try:
+        global mqtt_client
+        # Explicit protocol for compatibility with paho-mqtt 1.x
+        mqtt_client = mqtt.Client(client_id="flask_server", protocol=mqtt.MQTTv311, transport="tcp")
+        mqtt_client.enable_logger(logger)
+        mqtt_client.on_connect = on_connect
+        mqtt_client.on_message = on_message
+        mqtt_client.on_disconnect = on_disconnect
+        mqtt_client.reconnect_delay_set(min_delay=1, max_delay=30)
+        logger.info(f"[MQTT] Connecting to {MQTT_BROKER}:{MQTT_PORT}")
+        rc = mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        logger.info(f"[MQTT] connect() returned rc={rc}")
+        # Block in this thread to keep MQTT loop alive
+        mqtt_client.loop_forever()
+    except Exception as e:
+        logger.exception("MQTT thread error: %s", e)
 
 mqtt_thread = threading.Thread(target=start_mqtt)
 mqtt_thread.daemon = True
@@ -78,14 +120,18 @@ mqtt_thread.start()
 # ====== REST API ======
 @app.route("/dp")
 def get_dp_log():
-    limit = int(request.args.get("limit", 50))
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("SELECT * FROM dp_log ORDER BY id DESC LIMIT %s;", (limit,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return jsonify(rows[::-1])
+    try:
+        limit = int(request.args.get("limit", 50))
+        conn = get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM dp_log ORDER BY id DESC LIMIT %s;", (limit,))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify(rows[::-1])
+    except Exception as e:
+        print("Error in /dp:", e)
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/dp/save", methods=["POST"])
 def save_dp():
@@ -94,16 +140,28 @@ def save_dp():
         if sg_value is None:
             return jsonify({"error": "저장할 데이터가 없습니다."}), 400
 
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO dp_saved (sg) VALUES (%s) RETURNING id, sg, created_at;",
-            (sg_value,)
-        )
-        saved = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+        def do_insert():
+            conn = get_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO dp_saved (sg) VALUES (%s) RETURNING id, sg, created_at;",
+                (sg_value,)
+            )
+            saved_row = cur.fetchone()
+            conn.commit()
+            cur.close()
+            conn.close()
+            return saved_row
+
+        try:
+            saved = do_insert()
+        except Exception as inner_e:
+            # 테이블이 없으면 생성 후 한 번 재시도
+            if "dp_saved" in str(inner_e):
+                ensure_tables()
+                saved = do_insert()
+            else:
+                raise
 
         return jsonify({
             "id": saved[0],
@@ -116,42 +174,73 @@ def save_dp():
 
 @app.route("/dp/saved")
 def get_saved_values():
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 10))
-    offset = (page - 1) * per_page
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 10))
+        order = request.args.get("order", "desc").lower()
+        # 정렬 파라미터 화이트리스트
+        order_sql = "DESC" if order not in ["asc", "desc"] else order.upper()
+        offset = (page - 1) * per_page
 
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute(
-        "SELECT id, sg AS dp_pa, created_at FROM dp_saved ORDER BY id DESC LIMIT %s OFFSET %s;",
-        (per_page, offset)
-    )
-    rows = cur.fetchall()
+        def query():
+            conn = get_conn()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                f"SELECT id, sg AS dp_pa, created_at FROM dp_saved ORDER BY id {order_sql} LIMIT %s OFFSET %s;",
+                (per_page, offset)
+            )
+            rows_local = cur.fetchall()
+            cur.execute("SELECT COUNT(*) FROM dp_saved;")
+            total_local = cur.fetchone()["count"]
+            cur.close()
+            conn.close()
+            return rows_local, total_local
 
-    cur.execute("SELECT COUNT(*) FROM dp_saved;")
-    total = cur.fetchone()["count"]
+        try:
+            rows, total = query()
+        except Exception as inner_e:
+            # 테이블 미존재 시 생성 후 빈 결과 반환 또는 재시도
+            if "dp_saved" in str(inner_e):
+                ensure_tables()
+                # 생성 직후에는 데이터가 없을 수 있으므로 빈 결과 반환
+                rows, total = [], 0
+            else:
+                raise
 
-    cur.close()
-    conn.close()
-    return jsonify({
-        "data": rows,
-        "page": page,
-        "per_page": per_page,
-        "total": total,
-        "total_pages": (total + per_page - 1) // per_page
-    })
+        return jsonify({
+            "data": rows,
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": (total + per_page - 1) // per_page if per_page > 0 else 1
+        })
+    except Exception as e:
+        print("Error in /dp/saved:", e)
+        return jsonify({"error": str(e)}), 500
 
 # ====== Socket.IO 이벤트 (클라이언트 접속 확인용) ======
 @socketio.on("connect")
 def handle_connect():
-    print("Client connected")
+    logger.info("Client connected")
     # 연결 시 최신 데이터 전송
     socketio.emit("batteryUpdate", {"gravity": latest_data["sg"], "level": latest_data["samples"]})
+    logger.info("[Socket.IO] Emitting: %s", {"gravity": latest_data["sg"], "level": latest_data["samples"]})
+
 
 @socketio.on("disconnect")
 def handle_disconnect():
-    print("Client disconnected")
+    logger.info("Client disconnected")
+
+# ====== Health ======
+@app.route("/health/mqtt")
+def health_mqtt():
+    return jsonify({
+        "broker": f"{MQTT_BROKER}:{MQTT_PORT}",
+        "topic": MQTT_TOPIC,
+        "latest_data": latest_data,
+        "last_mqtt_received_at": last_mqtt_received_at
+    })
 
 if __name__ == "__main__":
-  socketio.run(app, host="0.0.0.0", port=5000)
+  socketio.run(app, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
 

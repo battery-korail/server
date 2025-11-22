@@ -1,176 +1,3 @@
-// "use client";
-
-// import { useEffect, useState } from "react";
-// import DPChart from "./components/DPChart";
-// import axios from "axios";
-
-// interface SavedValue {
-//   id: number;
-//   dp_pa: number;
-//   created_at: string;
-// }
-
-// export default function Home() {
-//   const [labels, setLabels] = useState<string[]>([]);
-//   const [data, setData] = useState<number[]>([]);
-//   const [currentValue, setCurrentValue] = useState<number>(0);
-
-//   const [savedValues, setSavedValues] = useState<SavedValue[]>([]);
-//   const [page, setPage] = useState(1);
-//   const [totalPages, setTotalPages] = useState(1);
-//   const API_URL = process.env.NEXT_PUBLIC_API_URL;
-// const [displayedValue, setDisplayedValue] = useState<number>(0);
-
-
-
-
-
-
-//   const fetchRealTime = async () => {
-//     try {
-//       const res = await axios.get(`${API_URL}/dp?limit=30`);
-//       //console.log("DP data:", res.data);
-//       const logs = res.data as any[];
-//       setLabels(logs.map((l: any) => new Date(l.created_at).toLocaleTimeString()));
-//       const dpVals = logs.map((l: any) => parseFloat(l.sg));
-//       setData(dpVals);
-//       setCurrentValue(dpVals[dpVals.length - 1] || 0);
-//     } catch (err) {
-//       console.error(err);
-//     }
-//   };
-
-//   // const fetchSaved = async (page: number) => {
-//   //   try {
-//   //     const res = await axios.get(`${API_URL}/dp/saved?page=${page}&per_page=5`);
-//   //     setSavedValues(res.data.data);
-//   //     setPage(res.data.page);
-//   //     setTotalPages(res.data.total_pages);
-//   //   } catch (err) {
-//   //     console.error(err);
-//   //   }
-//   // };
-// // fetchSaved 정의
-// const fetchSaved = async (page: number) => {
-//   try {
-//     const res = await axios.get(`${API_URL}/dp/saved?page=${page}&per_page=5`);
-//     const data = res.data as { 
-//       data: SavedValue[]; 
-//       page: number; 
-//       per_page: number; 
-//       total: number; 
-//       total_pages: number; 
-//     };
-//     setSavedValues(data.data);
-//     setPage(data.page);
-//     setTotalPages(data.total_pages);
-//   } catch (err) {
-//     console.error(err);
-//   }
-// };
-
-//   const handleSave = async () => {
-//     try {
-//       await axios.post(
-//        `${API_URL}/dp/save`,
-//         { dp_pa: currentValue },
-//         { headers: { "Content-Type": "application/json" } }
-//       );
-//       fetchSaved(page);
-//     } catch (err) {
-//       console.error(err);
-//     }
-//   };
-
-//   useEffect(() => {
-//     fetchRealTime();
-//     const interval = setInterval(fetchRealTime, 1000);
-//     fetchSaved(1);
-//     return () => clearInterval(interval);
-//   }, []);
-// // useEffect(() => {
-// //   console.log("labels updated:", labels);
-// //   console.log("data updated:", data);
-// // }, [labels, data]);
-
-// useEffect(() => {
-//   let animationFrame: number;
-//   const animate = () => {
-//     setDisplayedValue(prev => prev + (currentValue - prev) * 0.1);
-//     animationFrame = requestAnimationFrame(animate);
-//   };
-//   animate();
-//   return () => cancelAnimationFrame(animationFrame);
-// }, [currentValue]);
-
-
-//   return (
-//     <div className="p-6 bg-gray-100 min-h-screen space-y-6">
-//       {/* 실시간 dP 카드 */}
-//       <div className="bg-white rounded-xl shadow-md p-6">
-//         <h2 className="text-2xl font-bold mb-4">배터리셀 실시간 dP</h2>
-//         <DPChart labels={labels} data={data} />
-//         <div className="mt-4 flex items-center justify-between">
-//           <span className="text-3xl font-extrabold text-gray-700 cursor-default" title="현재 값">
-//   현재 값: {displayedValue.toFixed(2)} Pa
-// </span>
-//           <button
-//             className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition cursor-pointer"
-//             onClick={handleSave}
-//           >
-//             저장
-//           </button>
-//         </div>
-//       </div>
-
-//       {/* 저장된 값 테이블 카드 */}
-//       <div className="bg-white rounded-xl shadow-md p-6">
-//         <h2 className="text-2xl font-bold mb-4">저장된 값</h2>
-//         <div className="overflow-x-auto">
-//           <table className="w-full text-left">
-//             <thead>
-//               <tr className="bg-gray-100">
-//                 <th className="px-3 py-2 text-gray-600">ID</th>
-//                 <th className="px-3 py-2 text-gray-600">값 (Pa)</th>
-//                 <th className="px-3 py-2 text-gray-600">저장 시간</th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               {savedValues.map((v) => (
-//                 <tr key={v.id} className="hover:bg-gray-50 transition">
-//                   <td className="px-3 py-2 border-b border-gray-200">{v.id}</td>
-//                   <td className="px-3 py-2 font-medium border-b border-gray-200">{v.dp_pa.toFixed(2)}</td>
-//                   <td className="px-3 py-2 border-b border-gray-200">{new Date(v.created_at).toLocaleString()}</td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-//         </div>
-//         {/* 페이지네이션 */}
-//         <div className="mt-4 flex justify-between items-center">
-//           <button
-//             className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 cursor-pointer"
-//             onClick={() => page > 1 && fetchSaved(page - 1)}
-//             disabled={page <= 1}
-//           >
-//             이전
-//           </button>
-//           <span className="font-semibold">
-//             {page} / {totalPages}
-//           </span>
-//           <button
-//             className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 cursor-pointer"
-//             onClick={() => page < totalPages && fetchSaved(page + 1)}
-//             disabled={page >= totalPages}
-//           >
-//             다음
-//           </button>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -253,12 +80,23 @@ export default function App() {
             params.append('order', sortOrder);
 
             const res = await fetch(`${FLASK_API_URL}/dp/saved?${params.toString()}`);
-            const data = await res.json() as { data: SavedValue[]; page: number; total_pages: number; };
-            setSavedValues(data.data);
-            setPage(data.page);
-            setTotalPages(data.total_pages);
+            const contentType = res.headers.get('content-type') || '';
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`HTTP ${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
+            }
+            if (!contentType.includes('application/json')) {
+                const text = await res.text();
+                throw new Error(`Unexpected content-type: ${contentType}. Body: ${text.slice(0, 200)}`);
+            }
+            const json = await res.json() as any;
+            const list = Array.isArray(json?.data) ? (json.data as SavedValue[]) : [];
+            setSavedValues(list);
+            setPage(typeof json?.page === 'number' ? json.page : targetPage);
+            setTotalPages(typeof json?.total_pages === 'number' ? json.total_pages : 1);
         } catch (err) {
             console.error("저장된 값 조회 실패:", err);
+            setSavedValues([]);
         } finally {
             setIsLoadingSaved(false);
         }
@@ -275,7 +113,7 @@ export default function App() {
             const res = await fetch(`${FLASK_API_URL}/dp/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
             const result = await res.json();
             if (res.ok) {
-                alert(`✅ 저장 완료!\n비중 값: ${result.dp_pa.toFixed(3)}\n저장 시각: ${new Date(result.created_at).toLocaleTimeString()}`);
+                alert(`✅ 저장 완료!\n비중 값: ${result.dp_pa.toFixed(3)}\n`);
                 fetchSaved(page);
             } else { alert(`❌ 저장 실패: ${result.error || '알 수 없는 오류'}`); }
         } catch (err) {
@@ -309,17 +147,30 @@ export default function App() {
 
                 console.log(socket);
 
-                socket.on("connect", () => console.log("Socket.IO connected:", socket.id));
-socket.on("disconnect", () => console.log("Socket.IO disconnected"));
+                socket.on("connect", () => {
+    console.log("Socket.IO connected:", socket.id);
+    setIsSocketConnected(true); 
+});
 
-                socket.on('batteryUpdate', (data: { gravity: number, level: number }) => {
-                    const now = new Date();
-                    const timeLabel = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-                    setCurrentGravity(data.gravity);
-                    setCurrentLevel(data.level);
-                    addData(gravityChartRef.current, timeLabel, data.gravity);
-                    addData(levelChartRef.current, timeLabel, data.level);
-                });
+socket.on("disconnect", () => {
+    console.log("Socket.IO disconnected");
+    setIsSocketConnected(false); 
+});
+
+               socket.on('batteryUpdate', (data: { gravity: number, level: number }) => {
+    console.log("Received raw:", data);
+    setCurrentGravity(data.gravity);
+    setCurrentLevel(data.level);
+
+    if (gravityChartRef.current) {
+        console.log("Adding gravity to chart:", data.gravity);
+        addData(gravityChartRef.current, new Date().toLocaleTimeString(), data.gravity);
+    }
+    if (levelChartRef.current) {
+        console.log("Adding level to chart:", data.level);
+        addData(levelChartRef.current, new Date().toLocaleTimeString(), data.level);
+    }
+});
             }
         };
 
@@ -333,7 +184,7 @@ socket.on("disconnect", () => console.log("Socket.IO disconnected"));
     }, []);
 
     const statusColor = isSocketConnected ? 'bg-green-500' : 'bg-red-500';
-    const statusText = isSocketConnected ? '연결됨 (Node.js)' : '연결 끊김';
+    const statusText = isSocketConnected ? '연결됨' : '연결 끊김';
 
     return (
         <div className="p-4 md:p-8 bg-gray-50 min-h-screen font-sans">
@@ -443,7 +294,7 @@ const SavedDataTable: React.FC<SavedDataTableProps> = ({ savedValues, isLoadingS
                             </tr>
                         </thead>
                         <tbody>
-                            {savedValues.length > 0 ? savedValues.map(v => (
+                            {Array.isArray(savedValues) && savedValues.length > 0 ? savedValues.map(v => (
                                 <tr key={v.id} className="border-b border-gray-200 last:border-b-0 hover:bg-indigo-50/50 transition">
                                     <td className="px-4 py-3 text-sm text-gray-800">{v.id}</td>
                                     <td className="px-4 py-3 text-base font-semibold text-gray-900">{v.dp_pa.toFixed(3)}</td>

@@ -8,9 +8,9 @@ MQTT_TOPIC  = os.getenv("MQTT_TOPIC")
 # PostgreSQL 관련
 PG_HOST = os.getenv("PG_HOST")
 PG_PORT = int(os.getenv("PG_PORT", 5432))
-PG_DB   = os.getenv("POSTGRES_DB")
-PG_USER = os.getenv("POSTGRES_USER")
-PG_PASS = os.getenv("POSTGRES_PASSWORD")
+PG_DB   = os.getenv("PG_DB")
+PG_USER = os.getenv("PG_USER")
+PG_PASS = os.getenv("PG_PASS")
 
 # 연결 확인
 for var_name, var_value in [("MQTT_BROKER", MQTT_BROKER), ("MQTT_TOPIC", MQTT_TOPIC),
