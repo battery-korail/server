@@ -1,41 +1,37 @@
 # Korail Battery Monitoring System
 
-ESP32 기반 실시간 배터리 계측·전송·모니터링 서비스
+ESP32 기반의 배터리 비중(SG)·액위(Level) 실시간 계측/표시/전송 시스템
 
-본 프로젝트는 배터리의 액위 · 비중 등 주요 지표를 센서를 통해 측정하고, ESP32가 이를 **MQTT 기반으로 실시간 전송**하여 웹 대시보드에서 모니터링할 수 있는 IoT 시스템입니다.
+ESP32가 I2C 압력 센서로부터 데이터를 수집하고 Nextion HMI에 표시하며, 측정값을 MQTT로 전송합니다. 백엔드는 MQTT 메시지를 수신해 웹소켓으로 프론트엔드에 푸시하고, 사용자가 원할 때 현재 값을 DB에 저장해 이력을 조회할 수 있습니다.
 
 ---
 <img width="706" height="508" alt="스크린샷 2025-09-30 오후 12 25 10" src="https://github.com/user-attachments/assets/773b3702-16c6-47c7-a8fc-c425b9864300" />
 
 
-##  프로젝트 개요
+## 프로젝트 개요
 
-Korail 철도·산업용 배터리 유지보수 업무에서 **비효율적인 수동 측정 방식을 개선**하기 위해 개발한 프로젝트입니다.
-현직 작업자가 기존방식에 대한 신뢰성과 작업효율에 대한 문제 제기, 배터리셀의 비중과 액위를 한번에 측정할 수 있는 장비 제작 결정
+- **문제**: 철도·산업용 배터리 유지보수 현장에서 비중/액위 수치를 수기로 측정·기록 → 오류와 비효율.
+- **해결**: 자체 제작 장비로 비중/액위 동시 측정 → ESP32가 실시간 전송 → 웹 대시보드로 시각화/저장.
 
-
-기존에는 액위/비중/전압을 개별 장비로 측정하고 수기로 기록해야 했지만, 본 시스템은 다음을 목표로 합니다:
-
-- 센서 데이터 **자동 측정**
-- ESP32가 데이터를 **MQTT로 실시간 전송**
-- 서버가 데이터를 **DB에 저장 후 상태 분석**
-- 웹 대시보드에서 **실시간 그래프/로그 확인**
-- 
+목표:
+- 센서 데이터 자동 측정 및 유효성 확인
+- ESP32 → MQTT 브로커로 실시간 전송(JSON)
+- 서버가 수신 값을 캐시·웹소켓 푸시, 요청 시 DB 저장
+- 프론트엔드에서 실시간 그래프와 저장 이력 조회
 
 ---
-##  시스템 아키텍처
+## 시스템 아키텍처
 
 ```
 
 [Sensors] 자체 제작
 │
 ▼
-
 [ESP32]
-├─ 센서 데이터 수집
-├─ 필터링 및 유효성 검사
-├─ MQTT Publish 
-├─ Wi-Fi 연결 관리
+├─ I2C 수집(24-bit) → 필터링/보정(고정 게인·Tare)
+├─ Nextion HMI 표시(UART2, n0:SG, n1:샘플수)
+├─ MQTT Publish(JSON: {"sg","samples"})
+└─ Wi‑Fi 연결 관리
 
 ▼                 ▼            
 
@@ -43,27 +39,36 @@ Korail 철도·산업용 배터리 유지보수 업무에서 **비효율적인 �
 └─ Mosquitto    └─ 배터리 상태 실시간 표시
 
 ▼
-
-[Backend - Flask]
-├─ MQTT Subscriber
-├─ 데이터 파싱 & Validation
-├─ PostgreSQL 저장
+[Backend: Flask + Socket.IO]
+├─ Paho-MQTT Subscriber
+├─ 최신 측정 캐시 및 batteryUpdate 소켓 이벤트 푸시
+├─ PostgreSQL 저장(dp_saved)
 └─ REST API 제공
+
 ▼
 
 [Database - PostgreSQL]
 ├─ 실시간 로그
 
 ▼
+[Web Dashboard: Next.js + Chart.js]
+├─ 실시간 SG/Level 그래프
+└─ 현재 값 수동 저장 및 이력 페이지네이션 조회
+```
 
-[Web Dashboard - Next.js]
-├─ 실시간 데이터 그래프
-└─ 히스토리 조회
+---
+## 주요 기능
 
-[Grafana]
-└─ 장기 데이터 트렌드 분석
+- **디바이스(ESP32)**: ABP2 압력센서 계측, Tare, 고정 캘리브 게인 적용, Nextion 표시, MQTT 전송
+- **백엔드(Flask)**: MQTT 구독/파싱, Socket.IO 실시간 푸시, DB 저장/조회 API
+- **프론트엔드(Next.js)**: 실시간 그래프, 현재 값 저장 버튼, 저장 이력 테이블(페이지/정렬/날짜)
 
-````
+### MQTT 토픽/페이로드
+- 토픽: `STM/DP` 또는 환경/설정의 `MQTT_TOPIC`(기본값: `stm/dp`)
+- 페이로드(JSON):
+```json
+{"sg": 1.234, "samples": 30}
+```
 
 ---
 
@@ -78,42 +83,38 @@ Korail 철도·산업용 배터리 유지보수 업무에서 **비효율적인 �
 * 실시간 그래프 렌더링
 * 이전 측정 저장, 이력 조회
 
+### 디바이스(ESP32) 펌웨어
+- `Arduino/config.example.h`를 복사해 `Arduino/config.h` 생성 후 값 설정:
+  - `WIFI_SSID`, `WIFI_PASS`
+  - `MQTT_BROKER`, `MQTT_PORT`, `MQTT_TOPIC`(기본: `stm/dp`)
+- 하드웨어 연결(기본값):
+  - I2C: SDA=21, SCL=22
+  - Nextion UART2: TX2=GPIO17, RX2=GPIO16, Baud=115200
+- 빌드/업로드 후 부팅 시 자동 Tare 수행, 주기적으로 MQTT에 SG 전송
 
 ---
 
+---
 ## 기술 스택
 
 ### Device / Embedded
-
-| 기술                              | 설명           |
-| ------------------------------- | ------------ |
-| ESP32 (Arduino Core)            | 메인 컨트롤러      |
-| MQTT Publish                    | Telemetry 전송 |
+- **ESP32(Arduino Core)**: 메인 컨트롤러
+- **Honeywell ABP2**: I2C 압력 센서(24-bit)
+- **Nextion HMI**: 로컬 실시간 표시(UART2)
+- **MQTT Publish**: SG·샘플수 전송(JSON)
 
 ### Backend
-
-| 기술             | 설명                       |
-| -------------- | ------------------------ |
-| Flask (Python) | 서버 API & MQTT Subscriber |
-| Paho-MQTT      | MQTT 메시지 구독              |
-| PostgreSQL     | 시계열 데이터 저장               |
-| Docker         | 서버 배포 환경                 |
-
+- **Flask + Flask-SocketIO + CORS**
+- **Paho-MQTT**: 브로커 구독
+- **PostgreSQL(psycopg2-binary)**: 이력 저장
+- **python-dotenv**: 환경변수 관리
 
 ### Frontend
-
-| 기술                  | 설명          |
-| ------------------- | ----------- |
-| Next.js 14          | 웹 대시보드      |
-| TypeScript          | 안정적인 타입 환경  |
-| TailwindCSS         | UI 스타일링     |
-| Recharts / Chart.js | 실시간 그래프 시각화 |
+- **Next.js 14 + TypeScript**
+- **Chart.js**: 실시간 그래프
+- **TailwindCSS**: UI 스타일링
 
 ### Infra
-
-| 기술        | 설명          |
-| --------- | ----------- |
-| Mosquitto | MQTT Broker |
-| Grafana   | 장기 데이터 분석   |
-
+- **Mosquitto**: MQTT Broker
+- **PostgreSQL**: 데이터베이스
 
