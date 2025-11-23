@@ -94,12 +94,10 @@ ESP32가 I2C 압력 센서로부터 데이터를 수집하고 Nextion HMI에 표
 
 ---
 
----
 ## 기술 스택
 
 ### Device / Embedded
 - **ESP32(Arduino Core)**: 메인 컨트롤러
-- **Honeywell ABP2**: I2C 압력 센서(24-bit)
 - **Nextion HMI**: 로컬 실시간 표시(UART2)
 - **MQTT Publish**: SG·샘플수 전송(JSON)
 
