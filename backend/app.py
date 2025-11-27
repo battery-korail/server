@@ -184,6 +184,7 @@ def get_saved_values():
         page = int(request.args.get("page", 1))
         per_page = int(request.args.get("per_page", 10))
         order = request.args.get("order", "desc").lower()
+        date_str = request.args.get("date", "").strip()
         # 정렬 파라미터 화이트리스트
         order_sql = "DESC" if order not in ["asc", "desc"] else order.upper()
         offset = (page - 1) * per_page
@@ -191,12 +192,30 @@ def get_saved_values():
         def query():
             conn = get_conn()
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            where_clauses = []
+            params = []
+            if date_str:
+                # YYYY-MM-DD 문자열 기준으로 날짜 필터
+                where_clauses.append("created_at::date = %s")
+                params.append(date_str)
+            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+            # created_at 기준 정렬(동일 시 id 보조 정렬)
             cur.execute(
-                f"SELECT id, sg AS dp_pa, created_at FROM dp_saved ORDER BY id {order_sql} LIMIT %s OFFSET %s;",
-                (per_page, offset)
+                f"""
+                SELECT id, sg AS dp_pa, created_at
+                FROM dp_saved
+                {where_sql}
+                ORDER BY created_at {order_sql}, id {order_sql}
+                LIMIT %s OFFSET %s;
+                """,
+                (*params, per_page, offset)
             )
             rows_local = cur.fetchall()
-            cur.execute("SELECT COUNT(*) FROM dp_saved;")
+            cur.execute(
+                f"SELECT COUNT(*) FROM dp_saved {where_sql};",
+                tuple(params)
+            )
             total_local = cur.fetchone()["count"]
             cur.close()
             conn.close()
