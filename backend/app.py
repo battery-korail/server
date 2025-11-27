@@ -71,6 +71,7 @@ latest_data = {
 }
 last_mqtt_received_at = 0.0
 mqtt_client = None
+last_payload_text = ""
 
 # MQTT 콜백
 def on_connect(client, userdata, flags, rc):
@@ -85,6 +86,8 @@ def on_message(client, userdata, msg):
         payload_text = msg.payload.decode()
         logger.info("[MQTT] Received: %s", payload_text)
         payload = json.loads(payload_text)
+        global last_payload_text
+        last_payload_text = payload_text
         
         # 수신 포맷 유연 처리: level은 'level' 또는 'samples' 키로 들어올 수 있음
         if "sg" in payload:
@@ -93,12 +96,31 @@ def on_message(client, userdata, msg):
             latest_data["samples"] = float(payload["level"])
         elif "samples" in payload:
             latest_data["samples"] = float(payload["samples"])
+        elif "level_cm" in payload:
+            # 일부 펌웨어는 level_cm로 전송
+            latest_data["samples"] = float(payload["level_cm"])
 
-        if "sg" in payload or "level" in payload or "samples" in payload:
+        if "sg" in payload or "level" in payload or "samples" in payload or "level_cm" in payload:
             last_mqtt_received_at = time.time()
             # 웹에 push
             logger.info("[MQTT] Parsed sg=%.3f level=%.3f", float(latest_data["sg"]), float(latest_data["samples"]))
             socketio.emit("batteryUpdate", {"gravity": latest_data["sg"], "level": latest_data["samples"]})
+
+        # 저장 커맨드 처리: 최신 스냅샷을 DB에 저장
+        if str(payload.get("cmd", "")).lower() == "save":
+            try:
+                ensure_tables()
+                saved = insert_saved_snapshot(float(latest_data.get("sg", 0.0)), float(latest_data.get("samples", 0.0)))
+                logger.info("[MQTT] SAVE cmd → saved id=%s sg=%.3f level=%.3f", saved[0], saved[1], saved[2])
+                # 선택: 저장 결과를 실시간으로 프론트에 알림
+                socketio.emit("saved", {
+                    "id": saved[0],
+                    "dp_pa": saved[1],
+                    "level": saved[2],
+                    "created_at": saved[3].isoformat()
+                })
+            except Exception as se:
+                logger.exception("[MQTT] SAVE cmd error: %s", se)
     except Exception as e:
         logger.exception("[MQTT] payload parse error: %s", e)
         
@@ -128,6 +150,20 @@ mqtt_thread = threading.Thread(target=start_mqtt)
 mqtt_thread.daemon = True
 mqtt_thread.start()
 
+# ====== Helper: Save current snapshot to DB ======
+def insert_saved_snapshot(sg_value: float, level_value: float):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO dp_saved (sg, level) VALUES (%s, %s) RETURNING id, sg, level, created_at;",
+        (sg_value, level_value)
+    )
+    saved_row = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    return saved_row
+
 # ====== REST API ======
 @app.route("/dp")
 def get_dp_log():
@@ -153,17 +189,7 @@ def save_dp():
             return jsonify({"error": "저장할 데이터가 없습니다."}), 400
 
         def do_insert():
-            conn = get_conn()
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO dp_saved (sg, level) VALUES (%s, %s) RETURNING id, sg, level, created_at;",
-                (sg_value, level_value)
-            )
-            saved_row = cur.fetchone()
-            conn.commit()
-            cur.close()
-            conn.close()
-            return saved_row
+            return insert_saved_snapshot(sg_value, level_value)
 
         try:
             saved = do_insert()
@@ -288,7 +314,8 @@ def health_mqtt():
         "broker": f"{MQTT_BROKER}:{MQTT_PORT}",
         "topic": MQTT_TOPIC,
         "latest_data": latest_data,
-        "last_mqtt_received_at": last_mqtt_received_at
+        "last_mqtt_received_at": last_mqtt_received_at,
+        "last_payload": last_payload_text
     })
 
 if __name__ == "__main__":

@@ -69,6 +69,9 @@ export default function App() {
     const [selectedDate, setSelectedDate] = useState<string>(''); // YYYY-MM-DD
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc'); // 최신순 기본
     
+    // saved 이벤트에서 최신 fetchSaved를 안전하게 호출하기 위한 ref
+    const fetchSavedRef = useRef<(p: number) => void>(() => {});
+    
 
     // --- 저장된 값 조회 함수 ---
     const fetchSaved = useCallback(async (targetPage: number) => {
@@ -122,6 +125,9 @@ export default function App() {
 
     // 날짜 및 정렬 state 변화 시 자동 fetch
     useEffect(() => { fetchSaved(1); }, [selectedDate, sortOrder, fetchSaved]);
+
+    // fetchSaved 정의 이후에 레퍼런스 반영 (빌드 에러 방지)
+    useEffect(() => { fetchSavedRef.current = fetchSaved; }, [fetchSaved]);
 
     // --- 현재 측정값 저장 ---
     const handleSave = async () => {
@@ -192,6 +198,13 @@ socket.on("disconnect", () => {
         addData(levelChartRef.current, new Date().toLocaleTimeString(), data.level);
     }
 });
+               
+               // 서버가 SAVE 명령을 처리한 직후 알림을 받으면 저장 목록 자동 새로고침
+               socket.on('saved', (payload: any) => {
+                   console.log("Saved event:", payload);
+                   // 첫 페이지를 새로고침(필요시 현재 페이지 유지로 변경 가능)
+                   if (fetchSavedRef.current) fetchSavedRef.current(1);
+               });
             }
         };
 
