@@ -46,6 +46,11 @@ def ensure_tables():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
             );
         """)
+        # level 컬럼이 없으면 추가
+        cur.execute("""
+            ALTER TABLE dp_saved
+            ADD COLUMN IF NOT EXISTS level DOUBLE PRECISION;
+        """)
         conn.commit()
         cur.close()
         conn.close()
@@ -143,6 +148,7 @@ def get_dp_log():
 def save_dp():
     try:
         sg_value = latest_data.get("sg", 0.0)
+        level_value = latest_data.get("samples", 0.0)
         if sg_value is None:
             return jsonify({"error": "저장할 데이터가 없습니다."}), 400
 
@@ -150,8 +156,8 @@ def save_dp():
             conn = get_conn()
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO dp_saved (sg) VALUES (%s) RETURNING id, sg, created_at;",
-                (sg_value,)
+                "INSERT INTO dp_saved (sg, level) VALUES (%s, %s) RETURNING id, sg, level, created_at;",
+                (sg_value, level_value)
             )
             saved_row = cur.fetchone()
             conn.commit()
@@ -172,7 +178,8 @@ def save_dp():
         return jsonify({
             "id": saved[0],
             "dp_pa": saved[1],
-            "created_at": saved[2].isoformat()
+            "level": saved[2],
+            "created_at": saved[3].isoformat()
         })
     except Exception as e:
         print("Error in /dp/save:", e)
@@ -203,7 +210,7 @@ def get_saved_values():
             # created_at 기준 정렬(동일 시 id 보조 정렬)
             cur.execute(
                 f"""
-                SELECT id, sg AS dp_pa, created_at
+                SELECT id, sg AS dp_pa, level, created_at
                 FROM dp_saved
                 {where_sql}
                 ORDER BY created_at {order_sql}, id {order_sql}

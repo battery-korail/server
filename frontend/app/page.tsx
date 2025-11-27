@@ -17,6 +17,7 @@ interface ChartInstance {
 interface SavedValue {
   id: number;
   dp_pa: number;
+  level?: number | null;
   created_at: string;
 }
 
@@ -112,7 +113,10 @@ export default function App() {
             const res = await fetch(`${FLASK_API_URL}/dp/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
             const result = await res.json();
             if (res.ok) {
-                alert(`✅ 저장 완료!\n비중 값: ${result.dp_pa.toFixed(3)}\n`);
+                const sg = typeof result?.dp_pa === 'number' ? result.dp_pa.toFixed(3) : 'N/A';
+                const lvl = typeof result?.level === 'number' ? result.level.toFixed(1) : 'N/A';
+                const ts = result?.created_at ? new Date(result.created_at).toLocaleString() : '';
+                alert(`✅ 저장 완료!\n비중(SG): ${sg}\n액위(Level %): ${lvl}\n시간: ${ts}`);
                 fetchSaved(page);
             } else { alert(`❌ 저장 실패: ${result.error || '알 수 없는 오류'}`); }
         } catch (err) {
@@ -289,6 +293,7 @@ const SavedDataTable: React.FC<SavedDataTableProps> = ({ savedValues, isLoadingS
                             <tr className="bg-gray-100/80">
                                 <th className="px-4 py-3 text-sm font-semibold text-gray-600 rounded-tl-lg">ID</th>
                                 <th className="px-4 py-3 text-sm font-semibold text-gray-600">비중 값 (SG)</th>
+                                <th className="px-4 py-3 text-sm font-semibold text-gray-600">액위 (Level %)</th>
                                 <th className="px-4 py-3 text-sm font-semibold text-gray-600 rounded-tr-lg">저장 시간</th>
                             </tr>
                         </thead>
@@ -297,11 +302,12 @@ const SavedDataTable: React.FC<SavedDataTableProps> = ({ savedValues, isLoadingS
                                 <tr key={v.id} className="border-b border-gray-200 last:border-b-0 hover:bg-indigo-50/50 transition">
                                     <td className="px-4 py-3 text-sm text-gray-800">{v.id}</td>
                                     <td className="px-4 py-3 text-base font-semibold text-gray-900">{v.dp_pa.toFixed(3)}</td>
+                                    <td className="px-4 py-3 text-base font-semibold text-gray-900">{typeof v.level === 'number' ? v.level.toFixed(1) : '-'}</td>
                                     <td className="px-4 py-3 text-sm text-gray-600">{new Date(v.created_at).toLocaleString()}</td>
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={3} className="text-center py-6 text-gray-500">저장된 데이터가 없습니다.</td>
+                                    <td colSpan={4} className="text-center py-6 text-gray-500">저장된 데이터가 없습니다.</td>
                                 </tr>
                             )}
                         </tbody>
