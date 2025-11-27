@@ -79,14 +79,20 @@ def on_message(client, userdata, msg):
     try:
         payload_text = msg.payload.decode()
         logger.info("[MQTT] Received: %s", payload_text)
-        payload = json.loads(msg.payload.decode())
+        payload = json.loads(payload_text)
         
-        if "sg" in payload and "samples" in payload:
+        # 수신 포맷 유연 처리: level은 'level' 또는 'samples' 키로 들어올 수 있음
+        if "sg" in payload:
             latest_data["sg"] = float(payload["sg"])
-            latest_data["samples"] = int(payload["samples"])
+        if "level" in payload:
+            latest_data["samples"] = float(payload["level"])
+        elif "samples" in payload:
+            latest_data["samples"] = float(payload["samples"])
+
+        if "sg" in payload or "level" in payload or "samples" in payload:
             last_mqtt_received_at = time.time()
             # 웹에 push
-            logger.info("[MQTT] Parsed sg=%.3f samples=%d", latest_data["sg"], latest_data["samples"])
+            logger.info("[MQTT] Parsed sg=%.3f level=%.3f", float(latest_data["sg"]), float(latest_data["samples"]))
             socketio.emit("batteryUpdate", {"gravity": latest_data["sg"], "level": latest_data["samples"]})
     except Exception as e:
         logger.exception("[MQTT] payload parse error: %s", e)
