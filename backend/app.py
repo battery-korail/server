@@ -250,6 +250,24 @@ def get_saved_values():
         print("Error in /dp/saved:", e)
         return jsonify({"error": str(e)}), 500
 
+# 단일 레코드 삭제
+@app.route("/dp/saved/<int:item_id>", methods=["DELETE"])
+def delete_saved_value(item_id: int):
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM dp_saved WHERE id = %s RETURNING id;", (item_id,))
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        if not row:
+            return jsonify({"error": f"not found: id={item_id}"}), 404
+        return jsonify({"deleted": row[0]})
+    except Exception as e:
+        logger.exception("Error in DELETE /dp/saved/%s: %s", item_id, e)
+        return jsonify({"error": str(e)}), 500
+
 # ====== Socket.IO 이벤트 (클라이언트 접속 확인용) ======
 @socketio.on("connect")
 def handle_connect():

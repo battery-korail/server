@@ -68,6 +68,7 @@ export default function App() {
 
     const [selectedDate, setSelectedDate] = useState<string>(''); // YYYY-MM-DD
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc'); // 최신순 기본
+    
 
     // --- 저장된 값 조회 함수 ---
     const fetchSaved = useCallback(async (targetPage: number) => {
@@ -101,6 +102,23 @@ export default function App() {
             setIsLoadingSaved(false);
         }
     }, [selectedDate, sortOrder]);
+
+    const handleDeleteSaved = useCallback(async (id: number) => {
+        if (!confirm(`정말로 ID ${id} 항목을 삭제할까요?`)) return;
+        try {
+            const res = await fetch(`${FLASK_API_URL}/dp/saved/${id}`, { method: 'DELETE' });
+            const result = await res.json();
+            if (!res.ok) {
+                alert(`❌ 삭제 실패: ${result?.error || res.statusText}`);
+                return;
+            }
+            // 현재 페이지 갱신
+            fetchSaved(page);
+        } catch (e) {
+            console.error(e);
+            alert('❌ 삭제 중 오류가 발생했습니다.');
+        }
+    }, [fetchSaved, page]);
 
     // 날짜 및 정렬 state 변화 시 자동 fetch
     useEffect(() => { fetchSaved(1); }, [selectedDate, sortOrder, fetchSaved]);
@@ -225,6 +243,7 @@ socket.on("disconnect", () => {
                 sortOrder={sortOrder}
                 setSortOrder={setSortOrder}
                 fetchSaved={fetchSaved}
+                onDelete={handleDeleteSaved}
             />
         </div>
     );
@@ -258,9 +277,10 @@ interface SavedDataTableProps {
     sortOrder: 'asc' | 'desc';
     setSortOrder: React.Dispatch<React.SetStateAction<'asc' | 'desc'>>;
     fetchSaved: (page: number) => void;
+    onDelete: (id: number) => void;
 }
 
-const SavedDataTable: React.FC<SavedDataTableProps> = ({ savedValues, isLoadingSaved, page, totalPages, selectedDate, setSelectedDate, sortOrder, setSortOrder, fetchSaved }) => (
+const SavedDataTable: React.FC<SavedDataTableProps> = ({ savedValues, isLoadingSaved, page, totalPages, selectedDate, setSelectedDate, sortOrder, setSortOrder, fetchSaved, onDelete }) => (
     <div className="bg-white rounded-xl shadow-lg p-6">
         <h2 className="text-xl font-bold mb-4 text-gray-700">저장된 데이터 기록</h2>
 
@@ -294,7 +314,8 @@ const SavedDataTable: React.FC<SavedDataTableProps> = ({ savedValues, isLoadingS
                                 <th className="px-4 py-3 text-sm font-semibold text-gray-600 rounded-tl-lg">ID</th>
                                 <th className="px-4 py-3 text-sm font-semibold text-gray-600">비중 값 (SG)</th>
                                 <th className="px-4 py-3 text-sm font-semibold text-gray-600">액위 (Level %)</th>
-                                <th className="px-4 py-3 text-sm font-semibold text-gray-600 rounded-tr-lg">저장 시간</th>
+                                <th className="px-4 py-3 text-sm font-semibold text-gray-600">저장 시간</th>
+                                <th className="px-4 py-3 text-sm font-semibold text-gray-600 rounded-tr-lg text-right">삭제</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -304,10 +325,19 @@ const SavedDataTable: React.FC<SavedDataTableProps> = ({ savedValues, isLoadingS
                                     <td className="px-4 py-3 text-base font-semibold text-gray-900">{v.dp_pa.toFixed(3)}</td>
                                     <td className="px-4 py-3 text-base font-semibold text-gray-900">{typeof v.level === 'number' ? v.level.toFixed(1) : '-'}</td>
                                     <td className="px-4 py-3 text-sm text-gray-600">{new Date(v.created_at).toLocaleString()}</td>
+                                    <td className="px-4 py-3 text-sm text-right">
+                                        <button
+                                            onClick={() => onDelete(v.id)}
+                                            disabled={isLoadingSaved}
+                                            className="px-3 py-1 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition disabled:opacity-50"
+                                        >
+                                            삭제
+                                        </button>
+                                    </td>
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={4} className="text-center py-6 text-gray-500">저장된 데이터가 없습니다.</td>
+                                    <td colSpan={5} className="text-center py-6 text-gray-500">저장된 데이터가 없습니다.</td>
                                 </tr>
                             )}
                         </tbody>
